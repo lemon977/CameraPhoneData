@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <!--
+        网络安全配置：允许明文HTTP传输
+        用途：局域网文件传输（LocalTransferManager HTTP服务器）使用HTTP而非HTTPS
+        注意：仅用于局域网内网传输，不对外网开放
+    -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+
+    <!-- 阿里云OSS使用HTTPS，无需额外配置 -->
+    <!-- 如需调试特定域名，可在此添加domain-config -->
+</network-security-config>

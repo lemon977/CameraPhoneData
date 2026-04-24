@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <!--
+       自动备份规则（Android 6.0+）
+       说明：
+       - 标定数据（SharedPreferences）会自动备份到Google云端
+       - 视频文件（RobotData目录）通常很大，不建议备份到云端
+       - 如需备份标定参数到云端，取消下方include注释
+
+       注意：机器人采集的视频数据可能很大，务必排除外部存储文件
+    -->
+<full-backup-content>
+    <!-- 包含：标定参数等轻量级SharedPreferences -->
+    <!-- <include domain="sharedpref" path="CameraCalibration.xml"/> -->
+
+    <!-- 排除：大文件和视频数据（避免备份失败或流量浪费） -->
+    <exclude domain="external" path="Android/data/com.example.cameraphonedata/files/RobotData/"/>
+    <exclude domain="file" path="RobotData/"/>
+</full-backup-content>

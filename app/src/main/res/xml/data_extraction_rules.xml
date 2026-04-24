@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   数据提取规则（Android 12+）
+   策略：
+   - 只备份 sharedpref（标定参数、配置）
+   - 视频文件存储在外部私有目录，未被 include，默认不参与云备份
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="."/>
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="."/>
+    </device-transfer>
+</data-extraction-rules>
