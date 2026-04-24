@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <!--
+        FileProvider路径配置
+        用途：支持通过系统分享发送视频文件到其它应用（微信、QQ等）
+        引用位置：AndroidManifest.xml中的FileProvider
+    -->
+<paths>
+    <!-- 应用外部存储目录：/Android/data/com.example.cameraphonedata/files/ -->
+    <external-files-path
+        name="robot_data"
+        path="RobotData/" />
+
+    <!-- 应用外部存储根目录（备用） -->
+    <external-files-path
+        name="all_files"
+        path="." />
+
+    <!-- 缓存目录（临时文件） -->
+    <cache-path
+        name="cache"
+        path="." />
+
+    <!-- 外部缓存目录 -->
+    <external-cache-path
+        name="external_cache"
+        path="." />
+</paths>
