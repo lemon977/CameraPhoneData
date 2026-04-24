@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    tools:context=".MainActivity">
+
+    <!-- 相机预览：全屏 -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- 未标定警告横幅（顶部悬浮） -->
+    <TextView
+        android:id="@+id/tvServerStatus"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="4dp"
+        android:background="#CCB71C1C"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:padding="8dp"
+        android:visibility="gone"
+        android:gravity="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/infoPanel" />
+
+    <!-- 右侧参数面板：180dp 窄边栏 -->
+    <LinearLayout
+        android:id="@+id/infoPanel"
+        android:layout_width="180dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:background="#AA000000"
+        android:padding="6dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <Button
+            android:id="@+id/btnCalibrate"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="2dp"
+            android:paddingHorizontal="2dp"
+            android:text="@string/calibration_status_uncalibrated"
+            android:textSize="9sp"
+            android:textColor="#BBFFFFFF"
+            android:backgroundTint="#55B71C1C" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="2dp"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/tvParams"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="2dp"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:fontFamily="monospace"
+                android:lineSpacingMultiplier="1.0"
+                android:text="@string/camera_initializing_short" />
+        </ScrollView>
+
+        <!-- 底部控制 -->
+        <LinearLayout
+            android:id="@+id/bottomControls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingVertical="2dp">
+
+            <LinearLayout
+                android:id="@+id/zoomControl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:background="#88000000"
+                android:padding="1dp">
+
+                <Button
+                    android:id="@+id/btnZoomOut"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp"
+                    android:layout_weight="1"
+                    android:text="@string/zoom_out"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:backgroundTint="#CC2196F3"
+                    android:gravity="center"/>
+
+                <TextView
+                    android:id="@+id/tvZoomInfo"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp"
+                    android:layout_weight="1.2"
+                    android:gravity="center"
+                    android:text="@string/zoom_default_display"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:paddingHorizontal="1dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"/>
+
+                <Button
+                    android:id="@+id/btnZoomIn"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp"
+                    android:layout_weight="1"
+                    android:text="@string/zoom_in"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:backgroundTint="#CC2196F3"
+                    android:gravity="center"/>
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnRecord"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_shutter_idle"
+                android:contentDescription="@string/record_button_desc" />
+
+            <Button
+                android:id="@+id/btnExportPC"
+                android:layout_width="match_parent"
+                android:layout_height="32dp"
+                android:layout_marginTop="4dp"
+                android:text="@string/export_to_pc_short"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:backgroundTint="#1565C0" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 录制时长（边栏左侧顶部，防止被 infoPanel 盖住） -->
+    <TextView
+        android:id="@+id/tvRecordTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/time_zero"
+        android:textColor="#FF0000"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="#88000000"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="5dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/infoPanel" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
