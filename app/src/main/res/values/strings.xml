@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CameraPhoneData</string>
+
+    <string name="camera_initializing">正在启动相机并获取参数…</string>
+    <string name="camera_error">相机错误: %1$s</string>
+    <string name="permission_required">需要相机和录音权限</string>
+    <string name="permission_denied">权限被拒绝，应用无法运行</string>
+
+    <string name="time_zero">00:00:00</string>
+    <string name="time_format_hms">%1$02d:%2$02d:%3$02d</string>
+    <string name="time_format_ms">%1$02d:%2$02d</string>
+
+    <string name="zoom_default">1.0x</string>
+    <string name="zoom_format">%.1fx</string>
+
+    <string name="start_record">开始录制</string>
+    <string name="stop_record">停止录制</string>
+    <string name="recording_in_progress">录制中…</string>
+    <string name="saved_to_gallery">已保存到相册</string>
+    <string name="saved_to_private">已保存到应用目录</string>
+    <string name="record_failed">录制失败: %1$s</string>
+    <string name="record_success">录制成功</string>
+    <string name="record_complete_segments">录制完成，已保存 %1$d 个数据集</string>
+    <string name="segment_saved">第 %1$d 段视频已保存，继续录制…</string>
+
+    <string name="export_to_pc">上传网盘</string>
+    <string name="export_via_oss">上传阿里云OSS</string>
+
+    <string name="view_video">查看视频</string>
+    <string name="gallery_desc">打开相册</string>
+    <string name="no_videos_found">未找到视频文件</string>
+
+    <string name="param_source_factory">✅ 系统工厂参数</string>
+    <string name="param_source_estimate">⚠️ 传感器估算</string>
+    <string name="param_source_manual">✅ 人工标定</string>
+    <string name="param_source_none">❌ 未获取参数</string>
+    <string name="param_source_manual_count">✅ 人工标定（第%1$d次）</string>
+    <string name="param_quality_excellent">优秀</string>
+    <string name="param_quality_good">良好</string>
+    <string name="param_quality_fair">一般</string>
+    <string name="param_quality_poor">较差</string>
+
+    <string name="calibration_title">提升标定精度</string>
+    <string name="calibration_optional">参数已自动获取，可选择提升精度</string>
+    <string name="calibration_required_desc">当前使用传感器估算参数，误差约5%。\n\n如需更高精度，请进行棋盘格标定：\n• 打印9×6棋盘格（每格2cm）\n• 从不同角度拍摄15张照片\n• 充足光线，避免反光</string>
+    <string name="calibration_start">开始标定</string>
+    <string name="calibration_restart">重新标定</string>
+    <string name="calibration_skip">暂不使用</string>
+    <string name="calibration_improve">提升精度</string>
+    <string name="calibration_success">标定完成，参数已更新</string>
+    <string name="calibration_failed">标定失败</string>
+    <string name="calibration_progress">进度: %1$d/%2$d</string>
+    <string name="calibration_processing">正在处理…</string>
+    <string name="calibration_computing">正在计算标定参数…</string>
+    <string name="calibration_chessboard_not_found">未检测到棋盘格，请调整角度或光线</string>
+    <string name="calibration_low_quality">标定质量一般</string>
+    <string name="calibration_low_quality_desc">当前标定误差%.3f像素（建议&lt;0.5），是否保存？</string>
+
+    <string name="auto_param_success">已自动获取相机参数</string>
+    <string name="auto_param_factory">读取到系统出厂标定参数</string>
+    <string name="auto_param_estimate">通过传感器参数估算内参（误差约5%）</string>
+    <string name="auto_param_failed">无法自动获取参数，建议人工标定</string>
+    <string name="suggest_calibration">建议进行棋盘格标定以提升精度</string>
+    <string name="param_detail_title">参数详情</string>
+    <string name="param_detail_factory">已读取手机厂商的出厂标定参数，精度最高。\n\n参数来源：设备制造商\n可靠性：★★★★★\n\n如需更高精度（如科研用途），可选择人工标定。</string>
+    <string name="param_detail_estimate">通过相机传感器物理尺寸和焦距估算得出，误差约5%。\n\n参数来源：物理公式估算\n可靠性：★★★☆☆\n\n建议：如需更高精度，请进行棋盘格标定。</string>
+    <string name="param_detail_manual">已通过棋盘格标定获取，误差 %.3f 像素。\n\n参数来源：人工标定\n可靠性：★★★★★</string>
+
+    <string name="data_folder">数据文件夹</string>
+    <string name="video_count">视频数量</string>
+    <string name="storage_available">可用存储</string>
+    <string name="storage_warning">存储空间不足警告</string>
+    <string name="storage_critical">存储空间严重不足，请立即清理</string>
+
+    <string name="btn_ok">确定</string>
+    <string name="btn_cancel">取消</string>
+    <string name="btn_yes">是</string>
+    <string name="btn_no">否</string>
+    <string name="btn_retry">重试</string>
+    <string name="btn_settings">设置</string>
+    <string name="btn_done">完成</string>
+    <string name="btn_next">下一步</string>
+    <string name="btn_back">返回</string>
+
+    <string name="error_unknown">未知错误</string>
+    <string name="error_camera_init">相机初始化失败</string>
+    <string name="error_recording">录制过程发生错误</string>
+    <string name="error_file_save">文件保存失败</string>
+    <string name="error_network">网络连接错误</string>
+    <string name="error_upload_failed">上传失败: %1$s</string>
+    <string name="error_oss_config">OSS配置错误，请检查AccessKey</string>
+
+    <string name="long_recording_warning">即将开始长时间录制</string>
+    <string name="long_recording_tips">提示：\n• 确保电量充足（建议>50%）\n• 关闭其他应用以释放内存\n• 确保存储空间充足（建议>10GB）\n• 保持屏幕常亮已启用</string>
+    <string name="battery_low_warning">电量低，建议停止录制</string>
+    <string name="temperature_high_warning">设备温度过高，建议停止录制</string>
+
+    <string name="camera_not_ready">相机未就绪</string>
+    <string name="no_camera_params">未获取相机参数</string>
+    <string name="record_start_failed">录制启动失败</string>
+    <string name="port_occupied">端口被占用</string>
+    <string name="task_named">任务已命名：%1$s</string>
+    <string name="unnamed_task">未命名任务</string>
+    <string name="restart_camera_failed">重启相机失败: %1$s</string>
+    <string name="param_source_loading">获取参数中…</string>
+    <string name="zoom_default_display">1.0x</string>
+    <string name="camera_initializing_short">正在启动相机…</string>
+    <string name="gallery_content_desc">相册</string>
+    <string name="calibration_details_title">标定详情</string>
+    <string name="task_name_title">输入你的名字</string>
+    <string name="task_name_message">标定已完成！请输入你的名字，用于区分不同采集者的数据：</string>
+    <string name="task_name_hint">例如：张三、李四、王五…</string>
+    <string name="skip">跳过</string>
+    <string name="permission_rationale_title">需要权限</string>
+    <string name="export_to_pc_short">上传</string>
+    <string name="grant">授予</string>
+    <string name="deny">拒绝</string>
+    <string name="permission_denied_title">权限被拒绝</string>
+    <string name="exit">退出</string>
+    <string name="record_button_desc">录制按钮</string>
+    <string name="zoom_in">+</string>
+    <string name="zoom_out">−</string>
+    <string name="storage_warning_format">存储空间不足！剩余%1$dMB</string>
+    <string name="saved_path_format">已保存: %1$s</string>
+    <string name="segment_format">%1$s (第%2$d个数据集)</string>
+    <string name="close">关闭</string>
+    <string name="stopping_wait">正在停止…</string>
+    <string name="calibration_status_uncalibrated">⚠️ 未标定(点我标定)</string>
+    <string name="calibration_status_calibrated">✅ 已标定%1$d次(点我重标)</string>
+
+    <!-- 标定界面专用 -->
+    <string name="calib_status_ready">准备标定…</string>
+    <string name="calib_progress_default">进度: 0/%1$d</string>
+    <string name="calib_progress_complete">检测成功！拍摄完成，请点击计算标定</string>
+    <string name="calib_progress_remaining">检测成功，还需%1$d张，请换角度</string>
+    <string name="btn_capture">拍摄</string>
+    <string name="btn_compute">计算标定</string>
+    <string name="btn_reset">重置</string>
+    <string name="calib_hint">提示：打印9×6棋盘格(每格2cm)，拍%1$d张\n保持充足光线，避免反光\n\n【注意】请保持手机横屏</string>
+    <string name="calib_locked_status">已锁定：%1$.1fx / %2$dx%3$d\n请使用打印的9x6棋盘格</string>
+    <string name="calib_capturing">正在拍摄…</string>
+    <string name="calib_capture_failed">拍摄失败: %1$s</string>
+    <string name="calib_camera_error">相机错误: %1$s</string>
+    <string name="calib_not_detected">未检测到棋盘格！\n请居高拍摄（相机举高俯视标定板），确保棋盘格占画面2/3以上\n保持充足光线，避免反光和阴影</string>
+    <string name="calib_out_of_memory">内存不足，请降低标定分辨率后重试</string>
+    <string name="calib_process_error">处理错误: %1$s</string>
+    <string name="calib_compute_failed">标定计算失败</string>
+    <string name="calib_compute_error">计算异常: %1$s</string>
+    <string name="calib_min_photos_required">至少需要%1$d张图片</string>
+    <string name="calib_no_image_size">未获取到图像尺寸</string>
+    <string name="calib_rms_too_high">误差 %1$.2f 像素过大，必须重新标定（合格线&lt;%2$.1f）</string>
+    <string name="calib_dialog_title">标定不合格</string>
+    <string name="calib_dialog_message">当前结果无法保存，请重新拍摄棋盘格。</string>
+    <string name="calib_dialog_tips">拍摄建议：\n• 打印的棋盘格需平整粘贴，无褶皱弯曲\n• 居高拍摄：相机举高俯视标定板，减少透视变形\n• 确保棋盘格占画面 2/3 以上，边缘清晰可见\n• 保持充足光线，避免阴影、反光、过曝\n• 尝试多种角度：正面、倾斜、旋转、远近</string>
+    <string name="calib_dialog_reshoot">重拍</string>
+    <string name="calib_reset_done">已重置，请重新拍摄</string>
+
+    <!-- 录制拦截 -->
+    <string name="uncalibrated_warning">当前 %1$.1fx / %2$dx%3$d 未标定，请先完成标定</string>
+
+    <!-- 后台上传通知文案 -->
+    <string name="upload_service_started">后台上传已启动，请查看通知栏</string>
+    <string name="upload_notify_channel_name">数据上传服务</string>
+    <string name="upload_notify_channel_desc">保持后台上传机器人采集数据，支持锁屏续传</string>
+
+    <!-- 【新增】登录系统 -->
+    <string name="login_title">用户登录</string>
+    <string name="login_message">请输入账号和密码使用功能</string>
+    <string name="login_username_hint">账号</string>
+    <string name="login_password_hint">密码</string>
+    <string name="login_btn">登录</string>
+    <string name="login_exit">退出App</string>
+    <string name="login_empty_error">账号和密码不能为空</string>
+    <string name="login_success">登录成功：%1$s</string>
+    <string name="login_fail">账号或密码错误，请重新输入</string>
+</resources>
