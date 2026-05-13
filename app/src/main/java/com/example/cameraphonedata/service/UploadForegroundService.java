@@ -1,3 +1,4 @@
+// ========== UploadForegroundService.java（完整代码） ==========
 package com.example.cameraphonedata.service;
 
 import android.app.Notification;
@@ -19,18 +20,17 @@ import com.example.cameraphonedata.MainActivity;
 import com.example.cameraphonedata.R;
 import com.example.cameraphonedata.domain.manager.UploadManager;
 import com.example.cameraphonedata.utils.LogUtil;
-import com.example.cameraphonedata.utils.StorageManager;
 import com.example.cameraphonedata.data.upload.UploadState;
 
 import java.io.File;
+import java.util.concurrent.Future;
 
 /**
- * 上传前台服务 - 逐个文件直传版
- *
- * 【工程说明】
- * 1. 不再打包 zip，直接遍历文件夹逐个上传 MP4/JSON/CSV
- * 2. 通知栏显示：第 N/M 个文件，文件名，总体进度
- * 3. 支持锁屏/后台/切换应用，前台服务保活
+ * 上传前台服务 —— 逐个文件直传版
+ * 【2026-04-29 修复】
+ * 1. uploadDateFolder 返回 null 时（isUploading 被占用），立即标记 state 失败，防止轮询死循环。
+ * 2. onDestroy 中强制重置 UploadState，防止 Service 销毁后状态残留。
+ * 3. doUpload finally 中重置 isRunning，并清理 UploadState。
  */
 public class UploadForegroundService extends Service {
     private static final String TAG = "UploadService";
@@ -44,11 +44,12 @@ public class UploadForegroundService extends Service {
     private NotificationManager notificationManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private volatile boolean isRunning = false;
+    private volatile Future<?> uploadFuture;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        uploadManager = new UploadManager(this);
+        uploadManager = UploadManager.getInstance(this);
         notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         createNotificationChannel();
     }
@@ -75,7 +76,7 @@ public class UploadForegroundService extends Service {
 
         if (isRunning) {
             LogUtil.w(TAG, "已有上传任务进行中，忽略新请求");
-            return START_NOT_STICKY;
+            return START_REDELIVER_INTENT;
         }
 
         isRunning = true;
@@ -83,7 +84,7 @@ public class UploadForegroundService extends Service {
 
         new Thread(() -> doUpload(folder)).start();
 
-        return START_NOT_STICKY;
+        return START_REDELIVER_INTENT;
     }
 
     private void doUpload(File folder) {
@@ -92,7 +93,14 @@ public class UploadForegroundService extends Service {
         state.isUploading = true;
 
         try {
-            uploadManager.uploadDateFolder(folder, new UploadManager.UploadProgressListener() {
+            uploadFuture = uploadManager.uploadDateFolder(folder, new UploadManager.UploadProgressListener() {
+                @Override
+                public void onPreparing(String status) {
+                    mainHandler.post(() -> {
+                        updateProgressNotification("正在准备上传", status, 0);
+                    });
+                }
+
                 @Override
                 public void onProgress(int currentFile, int totalFiles, String currentFileName,
                                        long uploadedBytes, long totalBytes) {
@@ -135,6 +143,25 @@ public class UploadForegroundService extends Service {
                     });
                 }
             });
+
+            // 【关键修复】uploadDateFolder 返回 null 时（isUploading 被占用），
+            // 必须立即标记失败，否则 startUploadPoll 轮询会死循环
+            if (uploadFuture == null) {
+                LogUtil.w(TAG, "uploadDateFolder 返回 null，上传未启动");
+                state.isUploading = false;
+                state.isFailure = true;
+                state.errorMsg = "已有上传任务进行中或上传服务未就绪";
+                mainHandler.post(() -> {
+                    updateFinalNotification("❌ 上传未启动", "已有任务进行中或服务未就绪", false);
+                    stopForeground(false);
+                    stopSelf();
+                });
+                return;
+            }
+
+            // 同步等待上传线程真正结束
+            uploadFuture.get();
+
         } catch (Exception e) {
             LogUtil.e(TAG, "上传服务异常", e);
             state.isUploading = false;
@@ -145,6 +172,10 @@ public class UploadForegroundService extends Service {
                 stopForeground(false);
                 stopSelf();
             });
+        } finally {
+            isRunning = false;
+            uploadFuture = null;
+            LogUtil.i(TAG, "上传任务结束，isRunning 已重置");
         }
     }
 
@@ -152,6 +183,21 @@ public class UploadForegroundService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        isRunning = false;
+        if (uploadManager != null) {
+            uploadManager.cancelUpload("");
+            uploadManager.awaitUploadFinished(3000);
+        }
+        stopForeground(true);
+        mainHandler.removeCallbacksAndMessages(null);
+        // 【关键修复】不再此处 reset UploadState，避免与 MainActivity 的 startUploadPoll 竞争
+        // UploadState 由 MainActivity 消费完成后自行 reset
+        LogUtil.i(TAG, "上传服务已销毁");
     }
 
     private void createNotificationChannel() {

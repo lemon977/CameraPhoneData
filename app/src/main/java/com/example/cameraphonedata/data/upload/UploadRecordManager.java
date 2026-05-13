@@ -32,14 +32,16 @@ public class UploadRecordManager {
     }
 
     public synchronized UploadRecord getByFolder(String folderPath) {
+        if (folderPath == null || folderPath.isEmpty()) return null;
         for (UploadRecord r : records) {
-            if (folderPath.equals(r.localFolderPath)) return r;
+            if (r != null && folderPath.equals(r.localFolderPath)) return r;
         }
         return null;
     }
 
     public synchronized void removeByFolder(String folderPath) {
-        records.removeIf(r -> folderPath.equals(r.localFolderPath));
+        if (folderPath == null || folderPath.isEmpty()) return;
+        records.removeIf(r -> r != null && folderPath.equals(r.localFolderPath));
         persist();
     }
 
@@ -51,6 +53,7 @@ public class UploadRecordManager {
         return list;
     }
 
+    // ========== UploadRecordManager.java（仅展示 load 修复） ==========
     private void load() {
         if (!recordFile.exists()) return;
         try (FileInputStream fis = new FileInputStream(recordFile);
@@ -62,33 +65,55 @@ public class UploadRecordManager {
                 records.add(parse(arr.getJSONObject(i)));
             }
 
-            // ========== 兜底：清理无效记录（文件都不存在的记录自动移除） ==========
-            records.removeIf(r -> {
+            // 兜底清理：清理无效记录
+            boolean removed = records.removeIf(r -> {
+                // 【修复】增加 null 防护
+                if (r == null) return true;
                 boolean folderExists = r.localFolderPath != null && new File(r.localFolderPath).exists();
-                boolean zipExists = r.zipPath != null && new File(r.zipPath).exists();
+                boolean zipExists = r.zipPath != null && !r.zipPath.isEmpty() && new File(r.zipPath).exists();
                 return !folderExists && !zipExists;
             });
+            if (removed) {
+                persist();
+            }
 
         } catch (Exception e) {
             LogUtil.e(TAG, "加载记录失败", e);
         }
     }
 
+    /**
+     * 原子写：先写入临时文件，再通过 rename 覆盖原文件。
+     * 防止进程崩溃/被杀时记录文件被截断损坏。
+     */
     private void persist() {
-        try (FileOutputStream fos = new FileOutputStream(recordFile)) {
+        File tempFile = new File(recordFile.getParent(), recordFile.getName() + ".tmp");
+        try (FileOutputStream fos = new FileOutputStream(tempFile)) {
             JSONArray arr = new JSONArray();
             for (UploadRecord r : records) {
                 arr.put(toJson(r));
             }
-            fos.write(arr.toString().getBytes());
+            fos.write(arr.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            fos.flush();
+            fos.getFD().sync(); // 强制刷盘，防止断电丢失
         } catch (Exception e) {
-            LogUtil.e(TAG, "保存记录失败", e);
+            LogUtil.e(TAG, "保存记录到临时文件失败", e);
+            //noinspection ResultOfMethodCallIgnored
+            tempFile.delete();
+            return;
+        }
+        // 原子重命名：要么完整写入，要么保持旧文件不变
+        if (!tempFile.renameTo(recordFile)) {
+            LogUtil.e(TAG, "原子重命名记录文件失败");
+            //noinspection ResultOfMethodCallIgnored
+            tempFile.delete();
         }
     }
 
     private JSONObject toJson(UploadRecord r) throws Exception {
         JSONObject o = new JSONObject();
         o.put("localFolderPath", r.localFolderPath);
+        o.put("folderFingerprint", r.folderFingerprint);
         o.put("zipPath", r.zipPath);
         o.put("remoteFileName", r.remoteFileName);
         o.put("uploadId", r.uploadId);
@@ -108,6 +133,7 @@ public class UploadRecordManager {
     private UploadRecord parse(JSONObject o) throws Exception {
         UploadRecord r = new UploadRecord();
         r.localFolderPath = o.optString("localFolderPath");
+        r.folderFingerprint = o.optString("folderFingerprint");
         r.zipPath = o.optString("zipPath");
         r.remoteFileName = o.optString("remoteFileName");
         r.uploadId = o.optString("uploadId");

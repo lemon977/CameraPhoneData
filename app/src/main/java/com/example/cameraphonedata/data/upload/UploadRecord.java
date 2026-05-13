@@ -8,6 +8,7 @@ import java.util.List;
  */
 public class UploadRecord {
     public String localFolderPath;
+    public String folderFingerprint;
     public String zipPath;
     public String remoteFileName;
     public String uploadId;
