@@ -27,11 +27,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 【内存加固】
  * 1. 增加 3 秒超时兜底：MLKit 回调延迟时强制 imageProxy.close()，防止相机缓冲区堆积。
  * 2. AtomicBoolean 标志位防止重复 close 导致崩溃。
+ *
+ * 【国内网络优化】
+ * 1. 懒加载：构造时不再同步创建 PoseDetector，延迟到 setEnabled(true) 时才在后台线程初始化。
+ *    避免 App 一启动就触发 MLKit 内部的 Firebase Remote Config 拉取（国内大概率 5 秒超时）。
+ * 2. released 标志位：release() 调用后如果初始化任务刚好完成，自动 close 掉未使用的 detector，防止泄漏。
  */
 public class HandDetector implements ImageAnalysis.Analyzer {
     private static final String TAG = "HandDetector";
 
-    private final PoseDetector poseDetector;
+    private volatile PoseDetector poseDetector;
+    private final PoseDetectorOptionsBase options;
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
+    private final AtomicBoolean initializing = new AtomicBoolean(false);
+    private volatile boolean released = false;
+
     private final ExecutorService mlKitExecutor;
     private final float confidenceThreshold;
     private final long intervalMs;
@@ -47,11 +57,9 @@ public class HandDetector implements ImageAnalysis.Analyzer {
     public HandDetector(float confidenceThreshold, long intervalMs) {
         this.confidenceThreshold = confidenceThreshold;
         this.intervalMs = intervalMs;
-
-        PoseDetectorOptionsBase options = new PoseDetectorOptions.Builder()
+        this.options = new PoseDetectorOptions.Builder()
                 .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
                 .build();
-        this.poseDetector = PoseDetection.getClient(options);
         this.mlKitExecutor = Executors.newSingleThreadExecutor();
         this.timeoutHandler = new Handler(Looper.getMainLooper());
     }
@@ -63,6 +71,36 @@ public class HandDetector implements ImageAnalysis.Analyzer {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         Log.i(TAG, "人手检测开关: " + enabled);
+        if (enabled) {
+            ensureInitialized();
+        }
+    }
+
+    /**
+     * 懒加载初始化：把 PoseDetection.getClient() 放到后台线程，
+     * 避免主线程阻塞，同时延迟 Firebase Remote Config 请求到真正需要人手检测时。
+     */
+    private void ensureInitialized() {
+        if (initialized.get()) return;
+        if (!initializing.compareAndSet(false, true)) return;
+
+        mlKitExecutor.execute(() -> {
+            try {
+                Log.i(TAG, "PoseDetector 懒加载初始化开始...");
+                PoseDetector detector = PoseDetection.getClient(options);
+                if (released) {
+                    // 已经 release 了，直接关闭，避免泄漏
+                    detector.close();
+                    return;
+                }
+                poseDetector = detector;
+                initialized.set(true);
+                Log.i(TAG, "PoseDetector 初始化完成");
+            } catch (Exception e) {
+                Log.e(TAG, "PoseDetector 初始化失败", e);
+                initializing.set(false); // 允许下次重试
+            }
+        });
     }
 
     public boolean isEnabled() {
@@ -72,7 +110,7 @@ public class HandDetector implements ImageAnalysis.Analyzer {
     @Override
     @ExperimentalGetImage
     public void analyze(@NonNull ImageProxy imageProxy) {
-        if (!enabled) {
+        if (!enabled || !initialized.get()) {
             imageProxy.close();
             return;
         }
@@ -151,8 +189,12 @@ public class HandDetector implements ImageAnalysis.Analyzer {
     }
 
     public void release() {
+        released = true;
         mlKitExecutor.shutdown();
-        poseDetector.close();
+        PoseDetector detector = poseDetector;
+        if (detector != null) {
+            detector.close();
+        }
         timeoutHandler.removeCallbacksAndMessages(null);
     }
 }
