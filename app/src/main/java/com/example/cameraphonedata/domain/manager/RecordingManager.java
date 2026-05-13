@@ -1,4 +1,3 @@
-// ========== RecordingManager.java（完整代码） ==========
 package com.example.cameraphonedata.domain.manager;
 
 import android.content.Context;
