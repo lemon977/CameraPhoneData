@@ -1,4 +1,3 @@
-// ========== EffectiveDurationManager.java（完整代码） ==========
 package com.example.cameraphonedata.data;
 
 import android.content.Context;
