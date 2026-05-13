@@ -7,7 +7,7 @@ plugins {
 android {
     // 命名空间：对应 Java 包名，R 类生成路径
     namespace 'com.example.cameraphonedata'
-    compileSdk 36
+    compileSdk 34
 
     // ========== 默认配置（所有 buildType 共用） ==========
     defaultConfig {
@@ -20,8 +20,8 @@ android {
         targetSdk 34
 
         // 版本号：versionCode 纯数字（商店判断更新），versionName 给人看的
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1.2"
 
         // ========== 从 local.properties 读取 OSS 配置，编译时注入 BuildConfig ==========
         // 作用：AK/SK 不写死在代码里，打包时自动嵌入，GitHub 仓库永远看不到密钥
@@ -50,9 +50,10 @@ android {
     // release 用于打包 APK 发给别人
     buildTypes {
         release {
-            // 是否启用代码混淆（false = 不混淆，方便调试和反查问题）
-            minifyEnabled false
-            // ProGuard 规则文件，minifyEnabled 为 true 时才生效
+            // 启用代码混淆与资源压缩，防止源码泄露并减小 APK 体积
+            minifyEnabled true
+            shrinkResources true
+            // ProGuard 规则文件
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
