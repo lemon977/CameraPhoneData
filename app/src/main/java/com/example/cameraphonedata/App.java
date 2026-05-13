@@ -1,7 +1,9 @@
 package com.example.cameraphonedata;
 
 import android.app.Application;
-import android.util.Log;
+
+import com.example.cameraphonedata.utils.CrashHandler;
+import com.example.cameraphonedata.utils.LogUtil;
 
 import org.opencv.android.OpenCVLoader;
 
@@ -23,7 +25,10 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        Log.i(TAG, "Application onCreate");
+        LogUtil.i(TAG, "Application onCreate");
+
+        // 【高优先级】安装全局崩溃捕获器，录制过程中崩溃时自动紧急停止并保存数据
+        CrashHandler.install(this);
 
         // 全局初始化 OpenCV（失败不崩溃，标定页面会再尝试）
         initOpenCV();
@@ -33,14 +38,14 @@ public class App extends Application {
         try {
             openCvReady = OpenCVLoader.initDebug();
             if (openCvReady) {
-                Log.i(TAG, "OpenCV 初始化成功");
+                LogUtil.i(TAG, "OpenCV 初始化成功");
             } else {
-                Log.e(TAG, "OpenCV 初始化返回 false，可能 so 库未正确加载");
+                LogUtil.e(TAG, "OpenCV 初始化返回 false，可能 so 库未正确加载");
             }
         } catch (UnsatisfiedLinkError e) {
-            Log.e(TAG, "OpenCV so 库加载失败，请检查 opencv 模块配置", e);
+            LogUtil.e(TAG, "OpenCV so 库加载失败，请检查 opencv 模块配置", e);
         } catch (Exception e) {
-            Log.e(TAG, "OpenCV 初始化异常: " + e.getMessage(), e);
+            LogUtil.e(TAG, "OpenCV 初始化异常: " + e.getMessage(), e);
         }
     }
 
