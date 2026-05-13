@@ -2,21 +2,22 @@ package com.example.cameraphonedata.calibration;
 
 import android.util.Log;
 import android.util.Size;
+
 import com.example.cameraphonedata.config.CalibrationConfig;
+
 import org.opencv.calib3d.Calib3d;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.MatOfPoint3f;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
  * 标定管理器 —— 强制 5 维 Brown-Conrady 模型（最稳定）。
- *
- * 【修复】calibrationModel 强制为 0（CALIB_FIX_K3），避免 8 维过拟合导致画面扭曲。
- * OpenCV 输出只填充前 4 维（k1,k2,p1,p2），k3 固定为 0，k4/k5/k6 固定为 0。
+ * 【修复】addCalibrationImage 中原始 corners Mat 未释放，导致标定阶段内存泄漏。
  */
 public class CalibrationManager {
     private static final String TAG = "CalibrationManager";
@@ -32,6 +33,10 @@ public class CalibrationManager {
         this.config = config;
     }
 
+    /**
+     * 【修复】无论是否找到棋盘格，原始 corners 都必须 release。
+     * 找到时：corners.clone() 已存入 imagePointsList，原始 Mat 再无用处。
+     */
     public boolean addCalibrationImage(Mat gray) {
         MatOfPoint2f corners = new MatOfPoint2f();
         boolean found = false;
@@ -52,7 +57,8 @@ public class CalibrationManager {
         } catch (Exception e) {
             Log.e(TAG, "检测异常", e);
         } finally {
-            if (!found && corners != null) {
+            // 【关键修复】无条件释放原始 corners（clone 的副本已在 list 中）
+            if (corners != null) {
                 corners.release();
             }
         }
@@ -73,12 +79,10 @@ public class CalibrationManager {
 
             try {
                 cameraMatrix = Mat.eye(3, 3, CvType.CV_64F);
-                // 申请 8 维，但 CALIB_FIX_K3 下 OpenCV 只填充前 4 维，k3 强制为 0
                 distCoeffs = Mat.zeros(DISTORTION_DIM, 1, CvType.CV_64F);
                 rvecs = new ArrayList<>();
                 tvecs = new ArrayList<>();
 
-                // 【关键修复】强制使用 CALIB_FIX_K3（5 维），最稳定
                 int flags = Calib3d.CALIB_FIX_K3;
 
                 org.opencv.core.Size cvSize = new org.opencv.core.Size(
@@ -105,7 +109,6 @@ public class CalibrationManager {
                 cameraMatrix.get(0, 2, cx);
                 cameraMatrix.get(1, 2, cy);
 
-                // 读取 8 维（OpenCV 只填充前 4 维，后面保持 0）
                 double[] dist = new double[DISTORTION_DIM];
                 for (int i = 0; i < DISTORTION_DIM; i++) {
                     double[] val = new double[1];
@@ -203,22 +206,6 @@ public class CalibrationManager {
         public int imageWidth, imageHeight;
         public int photosUsed;
 
-        public String toJson() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("{\n");
-            sb.append(String.format(Locale.US, "  \"fx\": %.4f,\n", fx));
-            sb.append(String.format(Locale.US, "  \"fy\": %.4f,\n", fy));
-            sb.append(String.format(Locale.US, "  \"cx\": %.4f,\n", cx));
-            sb.append(String.format(Locale.US, "  \"cy\": %.4f,\n", cy));
-            sb.append(String.format(Locale.US, "  \"distortion\": [%.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f],\n",
-                    distortion[0], distortion[1], distortion[2], distortion[3],
-                    distortion[4], distortion[5], distortion[6], distortion[7]));
-            sb.append(String.format(Locale.US, "  \"rms_error\": %.4f,\n", rmsError));
-            sb.append(String.format(Locale.US, "  \"image_width\": %d,\n", imageWidth));
-            sb.append(String.format(Locale.US, "  \"image_height\": %d,\n", imageHeight));
-            sb.append(String.format(Locale.US, "  \"photos_used\": %d\n", photosUsed));
-            sb.append("}");
-            return sb.toString();
-        }
+
     }
 }

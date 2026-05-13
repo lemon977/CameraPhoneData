@@ -4,17 +4,23 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.provider.Settings;
 import android.util.Log;
+
 import com.example.cameraphonedata.camera.CameraParamReader;
+
 import java.util.Locale;
 
 /**
- * 标定数据持久化 - 严格双维度（zoom + resolution），删除旧版兼容回退
- * 畸变系数统一使用8维：k1,k2,p1,p2,k3,k4,k5,k6（不足补0）
+ * 标定数据持久化 - 以 LensRole（镜头角色）为主键，支持分辨率模糊匹配。
+ * 【版本兼容】
+ * - v2（当前）：LensRole + 分辨率主键，支持模糊匹配（高度差≤16px）。
+ * - 启动时自动迁移，旧版数据直接清空（项目初期无历史包袱）。
  */
 public class CalibrationData {
     private static final String TAG = "CalibrationData";
     private static final String PREFS_NAME = "CameraCalibration";
-    private static final String KEY_ZOOM_LIST = "calibrated_zoom_list_v2";
+    private static final String KEY_LENS_LIST = "calibrated_lens_list_v2";
+    private static final String KEY_DATA_VERSION = "data_version";
+    private static final int CURRENT_DATA_VERSION = 2;
 
     private static final String KEY_FX = "fx";
     private static final String KEY_FY = "fy";
@@ -31,13 +37,12 @@ public class CalibrationData {
     private static final String KEY_IMG_WIDTH = "img_width";
     private static final String KEY_IMG_HEIGHT = "img_height";
     private static final String KEY_ZOOM_LEVEL = "zoom_level";
+    private static final String KEY_LENS_ROLE = "lens_role";
 
-    /** 畸变系数维度（统一8维，兼容未来高阶模型） */
     public static final int DISTORTION_DIM = 8;
 
     public static class CalibrationResult {
         public float fx, fy, cx, cy;
-        /** 8维畸变系数：k1,k2,p1,p2,k3,k4,k5,k6 */
         public float[] distortion = new float[DISTORTION_DIM];
         public double rmsError;
         public String calibrationDate;
@@ -48,85 +53,121 @@ public class CalibrationData {
         public int imageWidth = 0;
         public int imageHeight = 0;
         public float zoomLevel = 1.0f;
+        public CameraConfig.LensRole lensRole = CameraConfig.LensRole.WIDE;
     }
 
     private final Context context;
 
     public CalibrationData(Context context) {
         this.context = context.getApplicationContext();
+        migrateIfNeeded();
     }
 
-    /** 双维度键：zoom + 分辨率 */
-    private SharedPreferences getPrefs(float zoomLevel, int width, int height) {
-        String name = PREFS_NAME + "_" + zoomKey(zoomLevel) + "_" + width + "x" + height;
+    private void migrateIfNeeded() {
+        SharedPreferences defaultPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        int oldVersion = defaultPrefs.getInt(KEY_DATA_VERSION, 0);
+        if (oldVersion < CURRENT_DATA_VERSION) {
+            Log.i(TAG, "标定数据从 v" + oldVersion + " 迁移到 v" + CURRENT_DATA_VERSION);
+            if (oldVersion == 0) {
+                // 旧版格式完全不同，直接清空最稳妥
+                clearAllCalibrations();
+            }
+            defaultPrefs.edit().putInt(KEY_DATA_VERSION, CURRENT_DATA_VERSION).apply();
+        }
+    }
+
+    private SharedPreferences getPrefs(CameraConfig.LensRole lensRole, int width, int height) {
+        String name = PREFS_NAME + "_" + lensRole.name() + "_" + width + "x" + height;
         return context.getSharedPreferences(name, Context.MODE_PRIVATE);
     }
 
-    private String zoomKey(float zoomLevel) {
-        return String.format(Locale.US, "z%.2f", zoomLevel);
-    }
-
-    private void updateZoomList(float zoomLevel, int width, int height) {
+    private void updateLensList(CameraConfig.LensRole lensRole, int width, int height) {
         SharedPreferences defaultPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String zoomListStr = defaultPrefs.getString(KEY_ZOOM_LIST, "");
-        String key = String.format(Locale.US, "%.2f_%dx%d", zoomLevel, width, height);
-        if (zoomListStr.isEmpty()) {
-            zoomListStr = key;
-        } else if (!zoomListStr.contains(key)) {
-            zoomListStr = zoomListStr + "," + key;
+        String listStr = defaultPrefs.getString(KEY_LENS_LIST, "");
+        String key = lensRole.name() + "_" + width + "x" + height;
+        if (listStr.isEmpty()) {
+            listStr = key;
+        } else if (!listStr.contains(key)) {
+            listStr = listStr + "," + key;
         }
-        defaultPrefs.edit().putString(KEY_ZOOM_LIST, zoomListStr).apply();
+        defaultPrefs.edit().putString(KEY_LENS_LIST, listStr).apply();
     }
 
     public boolean hasAnyParams() {
         SharedPreferences defaultPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String zoomListStr = defaultPrefs.getString(KEY_ZOOM_LIST, "");
-        return !zoomListStr.isEmpty();
+        String listStr = defaultPrefs.getString(KEY_LENS_LIST, "");
+        return !listStr.isEmpty();
     }
 
     /**
-     * 精确匹配双维度查询
+     * 【模糊匹配】先精确，再允许分辨率偏差（高度≤16px，宽度≤64px）。
+     * 解决 CameraX 实际输出 1088 与标定目标 1080 不匹配问题。
      */
-    public boolean isCalibrated(float zoomLevel, int width, int height) {
-        CalibrationResult r = getCalibration(zoomLevel, width, height);
+    public boolean isCalibrated(CameraConfig.LensRole lensRole, int width, int height) {
+        CalibrationResult r = getCalibration(lensRole, width, height);
         if (r == null) return false;
         return r.source == CameraParamReader.ParamSource.MANUAL_CALIBRATION
                 && r.rmsError < CalibrationConfig.getInstance().maxRmsError;
     }
 
-    /** 兼容旧代码：默认检查1.0x_1920x1080 */
     public boolean isCalibrated() {
-        return isCalibrated(1.0f, 1920, 1080);
+        return isCalibrated(CameraConfig.LensRole.WIDE, 1920, 1080);
     }
 
-    public CameraParamReader.ParamSource getParamSource(float zoomLevel, int width, int height) {
-        String sourceStr = getPrefs(zoomLevel, width, height).getString(KEY_SOURCE,
-                CameraParamReader.ParamSource.NONE.name());
-        try {
-            return CameraParamReader.ParamSource.valueOf(sourceStr);
-        } catch (Exception e) {
-            return CameraParamReader.ParamSource.NONE;
-        }
+    public CameraParamReader.ParamSource getParamSource(CameraConfig.LensRole lensRole, int width, int height) {
+        CalibrationResult r = getCalibration(lensRole, width, height);
+        if (r == null) return CameraParamReader.ParamSource.NONE;
+        return r.source;
     }
 
-    public int getCalibrationCount(float zoomLevel, int width, int height) {
-        return getPrefs(zoomLevel, width, height).getInt(KEY_CALIB_COUNT, 0);
+    public int getCalibrationCount(CameraConfig.LensRole lensRole, int width, int height) {
+        CalibrationResult r = getCalibration(lensRole, width, height);
+        if (r == null) return 0;
+        return r.calibrationCount;
     }
 
     /**
-     * 严格双维度查询：只查 (zoom, width, height)，不再回退旧版单维度
+     * 对外查询入口：支持模糊匹配。
      */
-    public CalibrationResult getCalibration(float zoomLevel, int width, int height) {
-        SharedPreferences prefs = getPrefs(zoomLevel, width, height);
-        if (prefs.contains(KEY_FX)) {
-            return loadFromPrefs(prefs);
+    public CalibrationResult getCalibration(CameraConfig.LensRole lensRole, int width, int height) {
+        // 1. 精确匹配
+        CalibrationResult exact = getCalibrationExact(lensRole, width, height);
+        if (exact != null) return exact;
+
+        // 2. 模糊匹配
+        SharedPreferences defaultPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String listStr = defaultPrefs.getString(KEY_LENS_LIST, "");
+        if (listStr.isEmpty()) return null;
+
+        for (String item : listStr.split(",")) {
+            try {
+                String[] parts = item.split("_");
+                if (parts.length < 2) continue;
+                CameraConfig.LensRole role = CameraConfig.LensRole.valueOf(parts[0]);
+                String[] wh = parts[1].split("x");
+                if (wh.length < 2) continue;
+                int w = Integer.parseInt(wh[0]);
+                int h = Integer.parseInt(wh[1]);
+
+                if (role == lensRole && Math.abs(w - width) <= 64 && Math.abs(h - height) <= 16) {
+                    Log.i(TAG, "模糊匹配成功: 请求 " + width + "x" + height + " -> 使用 " + w + "x" + h);
+                    return getCalibrationExact(role, w, h);
+                }
+            } catch (Exception ignored) {}
         }
         return null;
     }
 
-    /** 兼容旧代码 */
     public CalibrationResult getCalibration() {
-        return getCalibration(1.0f, 1920, 1080);
+        return getCalibration(CameraConfig.LensRole.WIDE, 1920, 1080);
+    }
+
+    private CalibrationResult getCalibrationExact(CameraConfig.LensRole lensRole, int width, int height) {
+        SharedPreferences prefs = getPrefs(lensRole, width, height);
+        if (prefs.contains(KEY_FX)) {
+            return loadFromPrefs(prefs);
+        }
+        return null;
     }
 
     private CalibrationResult loadFromPrefs(SharedPreferences prefs) {
@@ -144,6 +185,13 @@ public class CalibrationData {
         r.imageHeight = prefs.getInt(KEY_IMG_HEIGHT, 0);
         r.zoomLevel = prefs.getFloat(KEY_ZOOM_LEVEL, 1.0f);
 
+        String roleStr = prefs.getString(KEY_LENS_ROLE, CameraConfig.LensRole.WIDE.name());
+        try {
+            r.lensRole = CameraConfig.LensRole.valueOf(roleStr);
+        } catch (Exception ignored) {
+            r.lensRole = CameraConfig.LensRole.WIDE;
+        }
+
         String sourceStr = prefs.getString(KEY_SOURCE, CameraParamReader.ParamSource.NONE.name());
         try {
             r.source = CameraParamReader.ParamSource.valueOf(sourceStr);
@@ -157,16 +205,17 @@ public class CalibrationData {
         return r;
     }
 
-    public void saveCalibration(CalibrationResult result, String phoneId, float zoomLevel, int width, int height) {
-        SharedPreferences prefs = getPrefs(zoomLevel, width, height);
+    public void saveCalibration(CalibrationResult result, String phoneId,
+                                CameraConfig.LensRole lensRole, int width, int height) {
+        SharedPreferences prefs = getPrefs(lensRole, width, height);
         SharedPreferences.Editor editor = prefs.edit();
 
-        int currentCount = getCalibrationCount(zoomLevel, width, height);
+        int currentCount = getCalibrationCount(lensRole, width, height);
         if (result.source == CameraParamReader.ParamSource.MANUAL_CALIBRATION) {
             currentCount++;
         }
         result.calibrationCount = currentCount;
-        result.zoomLevel = zoomLevel;
+        result.lensRole = lensRole;
         result.imageWidth = width;
         result.imageHeight = height;
 
@@ -184,46 +233,44 @@ public class CalibrationData {
         editor.putInt(KEY_CALIB_COUNT, currentCount);
         editor.putInt(KEY_IMG_WIDTH, width);
         editor.putInt(KEY_IMG_HEIGHT, height);
-        editor.putFloat(KEY_ZOOM_LEVEL, zoomLevel);
+        editor.putFloat(KEY_ZOOM_LEVEL, result.zoomLevel);
+        editor.putString(KEY_LENS_ROLE, lensRole.name());
 
         for (int i = 0; i < DISTORTION_DIM; i++) {
             editor.putFloat(KEY_DIST_PREFIX + i, result.distortion[i]);
         }
         editor.apply();
 
-        updateZoomList(zoomLevel, width, height);
+        updateLensList(lensRole, width, height);
     }
 
-    /** 兼容旧代码 */
     public void saveCalibration(CalibrationResult result, String phoneId) {
         int w = result.imageWidth > 0 ? result.imageWidth : 1920;
         int h = result.imageHeight > 0 ? result.imageHeight : 1080;
-        float z = result.zoomLevel > 0 ? result.zoomLevel : 1.0f;
-        saveCalibration(result, phoneId, z, w, h);
+        CameraConfig.LensRole role = result.lensRole != null ? result.lensRole : CameraConfig.LensRole.WIDE;
+        saveCalibration(result, phoneId, role, w, h);
     }
 
-    /**
-     * 获取最适合当前录制场景的标定参数（精确匹配，不再模糊匹配）
-     */
-    public CalibrationResult getCalibrationForUse(float currentZoom, int targetWidth, int targetHeight) {
-        CalibrationResult exact = getCalibration(currentZoom, targetWidth, targetHeight);
-        if (exact != null && exact.source == CameraParamReader.ParamSource.MANUAL_CALIBRATION) {
-            return exact;
+    public CalibrationResult getCalibrationForUse(CameraConfig.LensRole lensRole, int targetWidth, int targetHeight) {
+        CalibrationResult result = getCalibration(lensRole, targetWidth, targetHeight);
+        if (result != null && result.source == CameraParamReader.ParamSource.MANUAL_CALIBRATION) {
+            return result;
         }
-        Log.w(TAG, "未找到 " + currentZoom + "x / " + targetWidth + "x" + targetHeight + " 的精确标定");
+        Log.w(TAG, "未找到 " + lensRole.name() + " / " + targetWidth + "x" + targetHeight + " 的标定");
         return null;
     }
 
     public void saveEstimateParams(CameraParamReader.CameraParams params) {
         if (params == null || !params.hasIntrinsics) return;
-        if (isCalibrated(1.0f, params.videoWidth, params.videoHeight)) return;
+        CameraConfig.LensRole currentRole = CameraConfig.getInstance().currentLensRole;
+        if (isCalibrated(currentRole, params.videoWidth, params.videoHeight)) return;
 
         CalibrationResult r = new CalibrationResult();
         r.fx = params.fx;
         r.fy = params.fy;
         r.cx = params.cx;
         r.cy = params.cy;
-        r.distortion = params.distortion != null ? params.distortion : new float[DISTORTION_DIM];
+        r.distortion = params.distortion != null ? params.distortion.clone() : new float[DISTORTION_DIM];
         r.hasDistortion = params.hasDistortion;
         r.rmsError = 999.0;
         r.calibrationDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
@@ -234,38 +281,40 @@ public class CalibrationData {
         r.imageWidth = params.videoWidth;
         r.imageHeight = params.videoHeight;
         r.zoomLevel = 1.0f;
+        r.lensRole = currentRole;
 
-        saveCalibration(r, getPhoneId(), 1.0f, params.videoWidth, params.videoHeight);
+        saveCalibration(r, getPhoneId(), currentRole, params.videoWidth, params.videoHeight);
     }
 
     public void saveFactoryParams(CameraParamReader.CameraParams params) {
         saveEstimateParams(params);
     }
 
-    public void clearCalibration(float zoomLevel, int width, int height) {
-        getPrefs(zoomLevel, width, height).edit().clear().apply();
+    public void clearCalibration(CameraConfig.LensRole lensRole, int width, int height) {
+        getPrefs(lensRole, width, height).edit().clear().apply();
     }
 
     public void clearCalibration() {
-        clearCalibration(1.0f, 1920, 1080);
+        clearCalibration(CameraConfig.LensRole.WIDE, 1920, 1080);
     }
 
     public void clearAllCalibrations() {
         SharedPreferences defaultPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String zoomListStr = defaultPrefs.getString(KEY_ZOOM_LIST, "");
-        if (!zoomListStr.isEmpty()) {
-            for (String item : zoomListStr.split(",")) {
+        String listStr = defaultPrefs.getString(KEY_LENS_LIST, "");
+        if (!listStr.isEmpty()) {
+            for (String item : listStr.split(",")) {
                 try {
                     String[] parts = item.split("_");
-                    float z = Float.parseFloat(parts[0]);
+                    CameraConfig.LensRole role = CameraConfig.LensRole.valueOf(parts[0]);
                     String[] wh = parts[1].split("x");
                     int w = Integer.parseInt(wh[0]);
                     int h = Integer.parseInt(wh[1]);
-                    clearCalibration(z, w, h);
+                    clearCalibration(role, w, h);
                 } catch (Exception ignored) {}
             }
         }
-        defaultPrefs.edit().clear().apply();
+        // 【修复】保留版本号和 phone_id，只移除列表
+        defaultPrefs.edit().remove(KEY_LENS_LIST).apply();
     }
 
     public String getPhoneId() {
@@ -282,13 +331,13 @@ public class CalibrationData {
         return id;
     }
 
-    public String getQualityRating(float zoomLevel, int width, int height) {
-        CameraParamReader.ParamSource source = getParamSource(zoomLevel, width, height);
+    public String getQualityRating(CameraConfig.LensRole lensRole, int width, int height) {
+        CameraParamReader.ParamSource source = getParamSource(lensRole, width, height);
         if (source == CameraParamReader.ParamSource.NONE) return "未获取";
         if (source == CameraParamReader.ParamSource.SYSTEM_FACTORY) return "优秀（工厂参数）";
         if (source == CameraParamReader.ParamSource.SENSOR_ESTIMATE) return "良好（估算）";
 
-        CalibrationResult r = getCalibration(zoomLevel, width, height);
+        CalibrationResult r = getCalibration(lensRole, width, height);
         if (r == null) return "未标定";
         if (r.rmsError < 0.3) return "优秀（标定）";
         if (r.rmsError < 0.5) return "良好（标定）";
@@ -297,6 +346,6 @@ public class CalibrationData {
     }
 
     public String getQualityRating() {
-        return getQualityRating(1.0f, 1920, 1080);
+        return getQualityRating(CameraConfig.LensRole.WIDE, 1920, 1080);
     }
 }

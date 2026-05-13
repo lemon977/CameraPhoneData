@@ -31,40 +31,46 @@ public class PatternDetector {
         long startTime = System.currentTimeMillis();
         int maxDetectionTimeMs = config.maxDetectionTimeMs;
 
-        // 策略1: 根据配置选择预处理
-        Mat processed = preprocess(gray, config);
+        Mat processed = null;
+        boolean found = false;
+        try {
+            // 策略1: 根据配置选择预处理
+            processed = preprocess(gray, config);
 
-        // 策略2: 多模式尝试（从快到慢）
-        boolean found = tryMultipleModes(processed, patternSize, corners, startTime, maxDetectionTimeMs);
+            // 策略2: 多模式尝试（从快到慢）
+            found = tryMultipleModes(processed, patternSize, corners, startTime, maxDetectionTimeMs);
 
-        // 策略3: 如果失败，尝试缩小图像再检测（提高稳定性）
-        if (!found && config.detectionMode >= 1) {
-            Log.d(TAG, "首次检测失败，尝试缩小检测");
-            Mat resized = new Mat();
-            Imgproc.resize(processed, resized, new Size(gray.width() / 2, gray.height() / 2));
+            // 策略3: 如果失败，尝试缩小图像再检测（提高稳定性）
+            if (!found && config.detectionMode >= 1) {
+                Log.d(TAG, "首次检测失败，尝试缩小检测");
+                Mat resized = new Mat();
+                Imgproc.resize(processed, resized, new Size(gray.width() / 2, gray.height() / 2));
 
-            MatOfPoint2f tempCorners = new MatOfPoint2f();
-            if (fastDetect(resized, new Size(config.chessboardCols, config.chessboardRows), tempCorners)) {
-                // 将角点坐标映射回原始尺寸
-                org.opencv.core.Point[] points = tempCorners.toArray();
-                for (int i = 0; i < points.length; i++) {
-                    points[i].x *= 2;
-                    points[i].y *= 2;
+                MatOfPoint2f tempCorners = new MatOfPoint2f();
+                if (fastDetect(resized, new Size(config.chessboardCols, config.chessboardRows), tempCorners)) {
+                    // 将角点坐标映射回原始尺寸
+                    org.opencv.core.Point[] points = tempCorners.toArray();
+                    for (int i = 0; i < points.length; i++) {
+                        points[i].x *= 2;
+                        points[i].y *= 2;
+                    }
+                    corners.fromArray(points);
+                    found = true;
+                    Log.i(TAG, "缩小检测成功");
                 }
-                corners.fromArray(points);
-                found = true;
-                Log.i(TAG, "缩小检测成功");
+                resized.release();
+                tempCorners.release();
             }
-            resized.release();
-            tempCorners.release();
-        }
 
-        // 策略4: 亚像素精化（如果找到）
-        if (found && config.useSubPixel) {
-            refineCorners(gray, corners, config);
+            // 策略4: 亚像素精化（如果找到）
+            if (found && config.useSubPixel) {
+                refineCorners(gray, corners, config);
+            }
+        } finally {
+            if (processed != null) {
+                processed.release();
+            }
         }
-
-        processed.release();
 
         long cost = System.currentTimeMillis() - startTime;
         Log.i(TAG, "检测耗时: " + cost + "ms, 结果: " + found);
@@ -125,7 +131,9 @@ public class PatternDetector {
         // 步骤3: CLAHE自适应增强（适合屏幕反光/阴影）
         if (config.useClahe) {
             Mat enhanced = new Mat();
-            Imgproc.createCLAHE(config.claheClipLimit, new Size(8, 8)).apply(result, enhanced);
+            org.opencv.imgproc.CLAHE clahe = Imgproc.createCLAHE(config.claheClipLimit, new Size(8, 8));
+            clahe.apply(result, enhanced);
+            clahe.collectGarbage();
             result.release();
             result = enhanced;
         }
