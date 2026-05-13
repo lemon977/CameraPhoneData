@@ -7,7 +7,6 @@ import java.util.List;
 
 /**
  * 账号配置中心 —— 从 AccountList 读取预置账号。
- *
  * 【安全改进】
  * 1. 对外暴露的 Account 对象不再包含 password 字段。
  * 2. 内部使用 char[] 存储密码，支持 Arrays.fill 清零。

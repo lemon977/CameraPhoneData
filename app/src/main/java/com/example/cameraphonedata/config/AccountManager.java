@@ -10,7 +10,6 @@ import com.example.cameraphonedata.utils.LogUtil;
 
 /**
  * 账号管理器 —— 登录状态加密持久化，不存储密码。
- *
  * 【加密说明】
  * 1. 登录态（用户名、角色、显示名、登录时间）使用 EncryptedSharedPreferences 存储。
  * 2. 本类不接触密码，密码校验由 AccountConfig 负责。
@@ -83,7 +82,7 @@ public class AccountManager {
     }
 
     public String getCurrentDisplayName() {
-        return encryptedPrefs.getString(KEY_DISPLAY_NAME, "未登录");
+        return encryptedPrefs.getString(KEY_DISPLAY_NAME, "unknown");
     }
 
     public long getLoginTime() {

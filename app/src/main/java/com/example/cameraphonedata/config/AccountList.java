@@ -2,11 +2,19 @@ package com.example.cameraphonedata.config;
 
 /**
  * 账号清单 —— 手动修改本文件即可增删改账号，无需改动其他代码。
- *
+ * <p>
  * 【安全说明】
  * 1. 密码使用 char[] 而非 String，避免进入 Java String 常量池长期驻留。
  * 2. 登录比对完成后，通过 Arrays.fill 清零，减少内存中密码留存时间。
  * 3. 本文件密码为随机生成示例，建议重新生成后再打包。
+ * <p>
+ * 【如何增删账号】
+ * 1. 新增：复制一行 new AccountEntry(...)，改用户名、密码、角色、显示名。
+ * 2. 删除：直接删除对应行。
+ * 3. 改密码：修改 char[] 内容即可。
+ * 4. 角色说明：
+ *    - "admin"：管理员，可查看所有数据
+ *    - "collector"：采集人，只能录制和上传自己的数据
  */
 public class AccountList {
 
@@ -26,7 +34,9 @@ public class AccountList {
 
     /**
      * 【手动修改区域】21 个账号，密码为随机 8 位混合字符。
-     * 如需重新生成，运行下方 Python 脚本，替换 char[] 内容即可。
+     * 如需批量生成密码，可用以下 Python 脚本：
+     * import random, string
+     * ''.join(random.choices(string.ascii_letters + string.digits, k=8))
      */
     public static final AccountEntry[] ACCOUNTS = {
             // ========== 管理员账号 ==========
