@@ -106,6 +106,16 @@
                 android:text="@string/btn_reset"
                 android:textSize="12sp"
                 android:backgroundTint="#FF9800" />
+
+            <Button
+                android:id="@+id/btnExitCalib"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="2dp"
+                android:text="@string/calib_exit"
+                android:textSize="12sp"
+                android:backgroundTint="#757575" />
         </LinearLayout>
 
         <TextView

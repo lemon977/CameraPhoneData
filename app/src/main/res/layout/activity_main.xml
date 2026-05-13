@@ -97,24 +97,26 @@
                 android:background="#88000000"
                 android:padding="1dp">
 
+                <!-- 左：切换到广角 -->
                 <Button
                     android:id="@+id/btnZoomOut"
                     android:layout_width="0dp"
                     android:layout_height="32dp"
                     android:layout_weight="1"
-                    android:text="@string/zoom_out"
+                    android:text="@string/lens_ultra_wide"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:backgroundTint="#CC2196F3"
                     android:gravity="center"/>
 
+                <!-- 中：显示当前镜头角色 -->
                 <TextView
                     android:id="@+id/tvZoomInfo"
                     android:layout_width="0dp"
                     android:layout_height="32dp"
                     android:layout_weight="1.2"
                     android:gravity="center"
-                    android:text="@string/zoom_default_display"
+                    android:text="@string/lens_wide"
                     android:textColor="#FFFFFF"
                     android:textSize="11sp"
                     android:textStyle="bold"
@@ -123,12 +125,13 @@
                     android:focusable="true"
                     android:foreground="?attr/selectableItemBackground"/>
 
+                <!-- 右：切换到主摄 -->
                 <Button
                     android:id="@+id/btnZoomIn"
                     android:layout_width="0dp"
                     android:layout_height="32dp"
                     android:layout_weight="1"
-                    android:text="@string/zoom_in"
+                    android:text="@string/lens_wide"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:backgroundTint="#CC2196F3"
