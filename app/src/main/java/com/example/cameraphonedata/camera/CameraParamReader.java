@@ -99,40 +99,7 @@ public class CameraParamReader {
             return sb.toString();
         }
 
-        public String toJson() {
-            return String.format(Locale.CHINA,
-                    "{" +
-                            "  \"source\": \"%s\"," +
-                            "  \"resolution\": {\"width\": %d, \"height\": %d}," +
-                            "  \"intrinsics\": {" +
-                            "    \"fx\": %.4f, \"fy\": %.4f," +
-                            "    \"cx\": %.4f, \"cy\": %.4f," +
-                            "    \"has_intrinsics\": %b" +
-                            "  }," +
-                            "  \"distortion\": {" +
-                            "    \"k1\": %.6f, \"k2\": %.6f, \"p1\": %.6f, \"p2\": %.6f," +
-                            "    \"k3\": %.6f, \"k4\": %.6f, \"k5\": %.6f, \"k6\": %.6f," +
-                            "    \"has_distortion\": %b" +
-                            "  }," +
-                            "  \"hardware\": {" +
-                            "    \"focal_length_mm\": %.2f," +
-                            "    \"sensor_width_mm\": %.2f," +
-                            "    \"sensor_height_mm\": %.2f" +
-                            "  }," +
-                            "  \"calibration\": {" +
-                            "    \"rms_error\": %.4f," +
-                            "    \"date\": \"%s\"" +
-                            "  }" +
-                            "}",
-                    source.name(), videoWidth, videoHeight,
-                    fx, fy, cx, cy, hasIntrinsics,
-                    distortion[0], distortion[1], distortion[2], distortion[3],
-                    distortion[4], distortion[5], distortion[6], distortion[7],
-                    hasDistortion,
-                    focalLengthMm, sensorWidthMm, sensorHeightMm,
-                    rmsError, calibrationDate
-            );
-        }
+
     }
 
     /**
@@ -274,6 +241,7 @@ public class CameraParamReader {
     /**
      * Level 2: 通过传感器物理参数估算内参
      * 公式: fx = 焦距(mm) × 图像宽度(px) / 传感器宽度(mm)
+     * 【兼容性】考虑 SENSOR_ORIENTATION：若 sensor 自然方向与 display 不同，需交换 width/height。
      */
     private boolean estimateFromSensor(CameraCharacteristics chars, CameraParams params,
                                        int imageWidth, int imageHeight) {
@@ -283,9 +251,20 @@ public class CameraParamReader {
             if (focalLengths != null && focalLengths.length > 0) {
                 params.focalLengthMm = focalLengths[0];
             } else {
-                // 回退：使用后置主摄常见焦距
                 params.focalLengthMm = 4.5f;
                 LogUtil.w(TAG, "无法读取焦距，使用默认值 4.5mm");
+            }
+
+            // 焦距 Sanity Check：若 >20mm，可能是 35mm 等效焦距
+            if (params.focalLengthMm > 20.0f) {
+                float old = params.focalLengthMm;
+                params.focalLengthMm = params.focalLengthMm / 6.0f; // 近似 crop factor
+                LogUtil.w(TAG, "焦距 Sanity Check: " + old + "mm 疑似 35mm 等效，修正为 "
+                        + String.format(Locale.US, "%.2f", params.focalLengthMm) + "mm");
+            }
+            if (params.focalLengthMm <= 0) {
+                params.focalLengthMm = 4.5f;
+                LogUtil.w(TAG, "焦距非法(<=0)，使用默认值 4.5mm");
             }
 
             // 读取传感器物理尺寸（mm）
@@ -294,11 +273,26 @@ public class CameraParamReader {
                 params.sensorWidthMm = sensorSize.getWidth();
                 params.sensorHeightMm = sensorSize.getHeight();
             } else {
-                // 回退：使用常见传感器尺寸（1/2.55英寸 ≈ 5.76×4.29mm）
                 params.sensorWidthMm = 5.76f;
                 params.sensorHeightMm = 4.29f;
                 LogUtil.w(TAG, "无法读取传感器尺寸，使用默认值 5.76×4.29mm");
             }
+
+            // 传感器尺寸 Sanity Check
+            if (params.sensorWidthMm <= 0.1f || params.sensorWidthMm > 50.0f
+                    || params.sensorHeightMm <= 0.1f || params.sensorHeightMm > 50.0f) {
+                LogUtil.w(TAG, "传感器尺寸异常: " + params.sensorWidthMm + "x" + params.sensorHeightMm
+                        + "，使用默认值 5.76×4.29mm");
+                params.sensorWidthMm = 5.76f;
+                params.sensorHeightMm = 4.29f;
+            }
+
+            // 读取 SENSOR_ORIENTATION（影响内参计算时的宽高使用）
+            Integer sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
+            int orientation = sensorOrientation != null ? sensorOrientation : 90;
+            // 若 sensor 为 90° 或 270°，物理宽度和高度与视频分辨率可能对应关系不同
+            // 保守策略：使用传入的 imageWidth/imageHeight 直接计算，但记录 orientation 供后续参考
+            LogUtil.i(TAG, "SENSOR_ORIENTATION=" + orientation + "°, video=" + imageWidth + "x" + imageHeight);
 
             // 估算内参
             if (params.focalLengthMm > 0 && params.sensorWidthMm > 0) {
@@ -306,6 +300,12 @@ public class CameraParamReader {
                 params.fy = params.focalLengthMm * imageHeight / params.sensorHeightMm;
                 params.cx = imageWidth / 2.0f;
                 params.cy = imageHeight / 2.0f;
+
+                // 内参 Sanity Check：fx/fy 应在合理范围内（如 100~20000）
+                if (params.fx < 100 || params.fx > 20000 || params.fy < 100 || params.fy > 20000) {
+                    LogUtil.w(TAG, "估算内参异常: fx=" + params.fx + ", fy=" + params.fy
+                            + ", 可能焦距或传感器尺寸有误");
+                }
 
                 LogUtil.i(TAG, String.format(Locale.US,
                         "估算内参: fx=%.2f, fy=%.2f, cx=%.2f, cy=%.2f (焦距=%.1fmm, 传感器=%.2fx%.2fmm)",
@@ -363,12 +363,16 @@ public class CameraParamReader {
 
     /**
      * 判断参数是否可用（用于录制前检查）
+     * 【防呆】增加内参合理性校验：fx/fy 必须在合理范围内，否则即使 >0 也可能因异常值导致后端计算错误。
      */
     public static boolean isParamsUsable(CameraParams params) {
         if (params == null) return false;
         if (params.source == ParamSource.NONE) return false;
         if (!params.hasIntrinsics) return false;
-        // 允许零畸变（估算参数），但必须有内参
-        return params.fx > 0 && params.fy > 0;
+        if (params.fx <= 0 || params.fy <= 0) return false;
+        // 合理性：fx/fy 应在 100~20000 之间，超出此范围很可能是异常值
+        if (params.fx < 100 || params.fx > 20000) return false;
+        if (params.fy < 100 || params.fy > 20000) return false;
+        return true;
     }
 }
