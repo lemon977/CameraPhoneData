@@ -1,23 +1,20 @@
 package com.example.cameraphonedata;
 
 import android.app.Activity;
-import android.content.Context;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.TextView;
-import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import com.example.cameraphonedata.camera.CameraParamReader;
 import com.example.cameraphonedata.config.CalibrationData;
+import com.example.cameraphonedata.config.CameraConfig;
 import java.util.Locale;
-import java.util.function.Consumer;
 
 /**
  * 主界面 UI 管理器 —— 所有 View 状态集中控制。
- *
- * 【防呆设计】
- * - 录制按钮始终可点击（enabled=true），但视觉状态区分：灰色锁定 / 绿色空闲 / 红色录制。
- * - 用户点击灰色按钮时，由 MainActivity 弹出提示，而非无响应。
+ * 【镜头角色版】
+ * - 标定按钮显示"广角未标定/主摄未标定"或"已标定N次"
+ * - 镜头显示区显示"广角"或"主摄"
+ * - 录制按钮逻辑不变
  */
 public class MainUiManager {
     private final TextView tvParams, tvRecordTime, tvZoomInfo, tvServerStatus;
@@ -34,6 +31,10 @@ public class MainUiManager {
         btnRecord = activity.findViewById(R.id.btnRecord);
         btnExportPC = activity.findViewById(R.id.btnExportPC);
         btnCalibrate = activity.findViewById(R.id.btnCalibrate);
+
+        if (tvParams == null || tvRecordTime == null || tvZoomInfo == null || btnRecord == null) {
+            throw new IllegalStateException("MainUiManager: 关键布局控件未找到，请检查 activity_main.xml");
+        }
 
         setRecordingState(false);
     }
@@ -56,19 +57,22 @@ public class MainUiManager {
         }
     }
 
-    public void updateZoomDisplay(float zoom) {
-        tvZoomInfo.setText(String.format(Locale.US, "%.1fx", zoom));
+    /** 【修改】显示镜头角色标签 */
+    public void updateLensDisplay(CameraConfig.LensRole role) {
+        String label = (role == CameraConfig.LensRole.ULTRA_WIDE) ? "广角" : "主摄";
+        tvZoomInfo.setText(label);
     }
 
-    /** 显示/隐藏未标定红色横幅。 */
-    public void showUncalibratedBanner(boolean show, float zoom, int width, int height) {
+    /** 【修改】未标定横幅按镜头角色显示 */
+    public void showUncalibratedBanner(boolean show, CameraConfig.LensRole role, int width, int height) {
         if (tvServerStatus == null) return;
         if (show) {
+            String label = (role == CameraConfig.LensRole.ULTRA_WIDE) ? "广角" : "主摄";
             tvServerStatus.setVisibility(android.view.View.VISIBLE);
             tvServerStatus.setBackgroundColor(0xFFB71C1C);
             tvServerStatus.setTextColor(0xFFFFFFFF);
             tvServerStatus.setText(String.format(Locale.US,
-                    "⚠️ 当前 %.1fx / %dx%d 未标定\n请先完成标定", zoom, width, height));
+                    "⚠️ 当前 %s / %dx%d 未标定\n请先完成标定", label, width, height));
         } else {
             tvServerStatus.setVisibility(android.view.View.GONE);
         }
@@ -84,21 +88,13 @@ public class MainUiManager {
         }
     }
 
-    /**
-     * 录制按钮视觉状态（始终可点击，由 MainActivity 拦截逻辑）。
-     * @param enabled  true = 可录制（绿色/红色）；false = 锁定（灰色半透明）
-     */
     public void setRecordEnabled(boolean enabled) {
         setRecordEnabled(enabled, true);
     }
 
-    /**
-     * @param enabled      是否可录制
-     * @param isCalibrated 当前是否已标定（影响空闲状态颜色）
-     */
     public void setRecordEnabled(boolean enabled, boolean isCalibrated) {
         if (btnRecord == null) return;
-        btnRecord.setEnabled(true); // 始终可点击，确保灰色状态也有提示
+        btnRecord.setEnabled(enabled);
         if (!enabled) {
             btnRecord.setBackgroundResource(R.drawable.bg_shutter_locked);
             btnRecord.setAlpha(0.5f);
@@ -113,6 +109,8 @@ public class MainUiManager {
     }
 
     public void setRecordStopping() {
+        if (btnRecord == null) return;
+        btnRecord.setEnabled(false);              // 停止过程中禁用，防止重复点击
         btnRecord.setBackgroundResource(R.drawable.bg_shutter_record);
         btnRecord.setAlpha(0.6f);
     }
@@ -121,7 +119,6 @@ public class MainUiManager {
         tvRecordTime.setText(text);
     }
 
-    /** 录制时禁用/启用其他控件（防呆：防止录制中切换焦距或误触导出）。 */
     public void setControlsEnabled(boolean enabled) {
         btnZoomIn.setEnabled(enabled);
         btnZoomOut.setEnabled(enabled);
@@ -136,42 +133,12 @@ public class MainUiManager {
         btnExportPC.setAlpha(alpha);
     }
 
-    public void showZoomInputDialog(Context context, float minZoom, float maxZoom, Consumer<Float> onZoomSet) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle("设置变焦倍数");
-        final EditText input = new EditText(context);
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        input.setHint(String.format(Locale.US, "范围: %.1fx - %.1fx", minZoom, maxZoom));
-        input.setPadding(40, 30, 40, 30);
-        builder.setView(input);
-        builder.setPositiveButton("确定", (d, w) -> {
-            try {
-                onZoomSet.accept(Float.parseFloat(input.getText().toString()));
-            } catch (NumberFormatException e) {
-                android.widget.Toast.makeText(context, "输入无效", android.widget.Toast.LENGTH_SHORT).show();
-            }
-        });
-        builder.setNegativeButton("取消", null);
-        builder.show();
-    }
-
-    public void showCollectorNameInputDialog(Context context, Consumer<String> onNamed) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle("输入你的名字");
-        builder.setMessage("标定已完成！请输入你的名字，用于区分不同采集者的数据：");
-        final EditText input = new EditText(context);
-        input.setHint("例如：张三、李四、王五…");
-        input.setMaxLines(1);
-        input.setPadding(40, 30, 40, 30);
-        builder.setView(input);
-        builder.setPositiveButton("确定", (dialog, which) -> {
-            String name = input.getText().toString().trim();
-            if (name.isEmpty()) name = "unknown";
-            onNamed.accept(name);
-        });
-        builder.setNegativeButton("跳过", (dialog, which) -> onNamed.accept("unknown"));
-        builder.setCancelable(false);
-        builder.show();
+    /** 【新增】控制广角按钮是否可用（用于融合架构无超广角能力时禁用） */
+    public void setWideButtonEnabled(boolean enabled) {
+        if (btnZoomOut != null) {
+            btnZoomOut.setEnabled(enabled);
+            btnZoomOut.setAlpha(enabled ? 1.0f : 0.3f);
+        }
     }
 
     public Button getBtnZoomIn() { return btnZoomIn; }
