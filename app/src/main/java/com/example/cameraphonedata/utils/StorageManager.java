@@ -3,7 +3,7 @@ package com.example.cameraphonedata.utils;
 import android.content.Context;
 import android.os.Environment;
 import android.os.StatFs;
-import android.util.Log;
+import com.example.cameraphonedata.utils.LogUtil;
 
 import java.io.File;
 
@@ -42,7 +42,7 @@ public class StorageManager {
                 }
             }
         } catch (Exception e) {
-            Log.w(TAG, "外部存储不可用", e);
+            LogUtil.e(TAG, "外部存储不可用", e);
         }
 
         // Level 2: 内部私有目录
@@ -51,12 +51,12 @@ public class StorageManager {
             if (dir != null) {
                 File target = new File(dir, folderName);
                 if (ensureDir(target)) {
-                    Log.i(TAG, "降级到内部存储: " + target.getAbsolutePath());
+                    LogUtil.i(TAG, "降级到内部存储: " + target.getAbsolutePath());
                     return target;
                 }
             }
         } catch (Exception e) {
-            Log.w(TAG, "内部存储不可用", e);
+            LogUtil.e(TAG, "内部存储不可用", e);
         }
 
         // Level 3: 缓存目录（最后手段，空间可能很小）
@@ -65,15 +65,15 @@ public class StorageManager {
             if (dir != null) {
                 File target = new File(dir, folderName);
                 if (ensureDir(target)) {
-                    Log.w(TAG, "降级到缓存目录: " + target.getAbsolutePath());
+                    LogUtil.w(TAG, "降级到缓存目录: " + target.getAbsolutePath());
                     return target;
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "缓存目录不可用", e);
+            LogUtil.e(TAG, "缓存目录不可用", e);
         }
 
-        Log.e(TAG, "所有存储路径均不可用");
+        LogUtil.e(TAG, "所有存储路径均不可用");
         return null;
     }
 
@@ -92,7 +92,7 @@ public class StorageManager {
             StatFs stat = new StatFs(path.getPath());
             return stat.getAvailableBytes();
         } catch (Exception e) {
-            Log.w(TAG, "获取可用空间失败，使用估算值", e);
+            LogUtil.e(TAG, "获取可用空间失败，使用估算值", e);
             return FALLBACK_AVAILABLE;
         }
     }
@@ -106,7 +106,7 @@ public class StorageManager {
             StatFs stat = new StatFs(path.getPath());
             return stat.getTotalBytes();
         } catch (Exception e) {
-            Log.w(TAG, "获取总空间失败", e);
+            LogUtil.e(TAG, "获取总空间失败", e);
             return 0;
         }
     }
