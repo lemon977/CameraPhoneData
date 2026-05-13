@@ -20,6 +20,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- 【新增】前台服务数据同步类型，确保后台上传不被系统杀死 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 【新增】Android 12+ 高采样率传感器权限，使用 SENSOR_DELAY_FASTEST 时必须声明 -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
 
     <queries>
         <intent><action android:name="android.intent.action.PICK" /><data android:mimeType="video/*" /></intent>
@@ -37,13 +39,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true"
-        android:preserveLegacyExternalStorage="true"
         tools:targetApi="31">
 
         <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="pose" />
+        <!-- 【可选】禁用 Firebase 统计，消除日志污染 -->
+        <meta-data android:name="firebase_crashlytics_collection_enabled" android:value="false" />
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
+        <!-- 【国内网络优化】尝试禁用 MLKit Firebase Remote Config 自动拉取，减少超时日志 -->
+        <meta-data android:name="com.google.mlkit.remote_config.auto_fetch" android:value="false" />
 
         <!-- 录制前台服务 -->
         <service
@@ -67,7 +72,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
