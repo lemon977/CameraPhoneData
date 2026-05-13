@@ -29,8 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 视频录制器 —— 基于 CameraX VideoCapture。
- *
- * 【20人采集注意】
+ * 【采集注意】
  * - 分段录制默认 60s，防止单文件过大导致上传失败或内存溢出。
  * - 所有状态标志统一使用 AtomicBoolean，避免多线程竞争与类型混淆。
  * - 停止超时 8s 强制重置，防止状态机卡死。
@@ -189,13 +188,23 @@ public class VideoRecorder {
     }
 
     public void stopRecording() {
-        if (currentRecording == null || !isRecording.get() || isStopping.get()) {
+        mainHandler.removeCallbacks(segmentRunnable);
+        if (!isRecording.get() || isStopping.get()) {
             LogUtil.w(TAG, "停止请求被忽略");
+            return;
+        }
+        if (currentRecording == null) {
+            // 可能处于自动分段间隙中
+            forceResetState();
+            stopTimeoutHandler.removeCallbacksAndMessages(null);
+            if (listener != null) {
+                listener.onRecordStop(true, null,
+                        currentSessionFolder != null ? currentSessionFolder.getAbsolutePath() : null);
+            }
             return;
         }
         isStopping.set(true);
         isAutoSplitting.set(false);
-        mainHandler.removeCallbacks(segmentRunnable);
 
         stopTimeoutHandler.removeCallbacksAndMessages(null);
         stopTimeoutHandler.postDelayed(() -> {
@@ -298,7 +307,10 @@ public class VideoRecorder {
                 return false;
             }
             return true;
-        } catch (Exception e) { return true; }
+        } catch (Exception e) {
+            LogUtil.e(TAG, "存储检查异常，保守阻止录制", e);
+            return false;
+        }
     }
 
     private boolean hasAudioPermission() {

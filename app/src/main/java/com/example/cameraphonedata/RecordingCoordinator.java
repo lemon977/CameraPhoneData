@@ -4,7 +4,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
@@ -54,7 +56,7 @@ public class RecordingCoordinator {
         context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
-    public void unbindService() {
+    public void unbindAndStopService() {
         if (serviceBound) {
             context.unbindService(serviceConnection);
             serviceBound = false;
@@ -81,7 +83,7 @@ public class RecordingCoordinator {
     public void onRecordingStopped() {
         uiManager.setRecordingState(false);
         if (handDetectionManager != null) handDetectionManager.setEnabled(false);
-        unbindService();
+        unbindAndStopService();
 
         if (voicePromptManager != null && CameraConfig.getInstance().enableVoicePrompt) {
             voicePromptManager.speak("录制结束", CameraConfig.getInstance().recordStopRawResId);
@@ -100,6 +102,10 @@ public class RecordingCoordinator {
      * segNumber: 1-based（第1个、第2个...），由 RecordingManager 传入，不会出现 0。
      */
     public void onSegmentEnded(int segNumber) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            new Handler(Looper.getMainLooper()).post(() -> onSegmentEnded(segNumber));
+            return;
+        }
         Toast.makeText(context, String.format("第 %d 个数据集已保存，继续录制…", segNumber), Toast.LENGTH_SHORT).show();
         if (voicePromptManager != null && CameraConfig.getInstance().enableVoicePrompt) {
             voicePromptManager.speak("第" + segNumber + "个数据集已保存",
