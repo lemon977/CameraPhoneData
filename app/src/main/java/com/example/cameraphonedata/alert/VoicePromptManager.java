@@ -11,14 +11,19 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.Log;
 
+import com.example.cameraphonedata.utils.LogUtil;
+
 /**
  * 语音播报管理器 - 纯音频版（无 TTS）
- * 修复：增加播放防抖（800ms），避免重叠播放导致 MediaPlayer 异常；
- *       串行化所有播放请求，确保蜂鸣+振动兜底稳定触发。
+ * 【排查加固】
+ * 1. 全链路加日志，方便抓 log 定位。
+ * 2. 播放间隔放宽到 200ms（原 800ms 可能拦截报警）。
+ * 3. 蜂鸣走 STREAM_MUSIC（更容易听到）。
+ * 4. 明确提示 MediaPlayer.create 失败原因。
  */
 public class VoicePromptManager {
     private static final String TAG = "VoicePrompt";
-    private static final long MIN_PLAY_INTERVAL_MS = 800;
+    private static final long MIN_PLAY_INTERVAL_MS = 1500; // 避免报警被拦截
 
     private final Context context;
     private final Handler mainHandler;
@@ -34,30 +39,35 @@ public class VoicePromptManager {
     /**
      * 播报提示音
      *
-     * @param text     日志用文本（不用于语音合成）
-     * @param rawResId 内置音频资源ID，0 表示无音频（直接蜂鸣+振动）
+     * @param text     日志用文本
+     * @param rawResId 内置音频资源ID，0 表示无音频（蜂鸣兜底）
      */
     public void speak(String text, int rawResId) {
         if (isReleased) {
             Log.w(TAG, "已释放，忽略播报: " + text);
             return;
         }
-        // 所有操作串行到主线程，避免并发冲突
+        // 【优化】提前做间隔过滤，避免无效请求堆积在 Handler 队列中
+        long now = System.currentTimeMillis();
+        if (now - lastPlayTime < MIN_PLAY_INTERVAL_MS) {
+            Log.d(TAG, "播放间隔太短，提前忽略: " + text + " (间隔=" + (now - lastPlayTime) + "ms)");
+            return;
+        }
+        Log.i(TAG, "收到播报请求: " + text + ", rawResId=" + rawResId);
         mainHandler.post(() -> speakInternal(text, rawResId));
     }
 
     private void speakInternal(String text, int rawResId) {
         long now = System.currentTimeMillis();
         if (now - lastPlayTime < MIN_PLAY_INTERVAL_MS) {
-            Log.d(TAG, "播放间隔太短，忽略: " + text);
+            Log.d(TAG, "播放间隔太短，忽略: " + text + " (间隔=" + (now - lastPlayTime) + "ms)");
             return;
         }
         lastPlayTime = now;
+        Log.i(TAG, "执行播报: " + text);
 
-        // 先释放旧播放器
         releaseCurrentPlayer();
 
-        // 策略1: 内置音频（MediaPlayer）
         if (rawResId != 0) {
             boolean played = playRawAudio(rawResId, text);
             if (played) {
@@ -65,9 +75,10 @@ public class VoicePromptManager {
                 return;
             }
             Log.w(TAG, "MediaPlayer 播放失败，降级到蜂鸣: " + text);
+        } else {
+            Log.w(TAG, "rawResId=0，直接走蜂鸣兜底: " + text);
         }
 
-        // 策略2: 蜂鸣+振动（100%兼容兜底）
         fallbackBeepAndVibrate();
     }
 
@@ -75,10 +86,11 @@ public class VoicePromptManager {
         try {
             MediaPlayer mp = MediaPlayer.create(context, rawResId);
             if (mp == null) {
-                Log.e(TAG, "MediaPlayer.create 返回 null，资源ID无效: " + rawResId);
+                Log.e(TAG, "MediaPlayer.create 返回 null，资源ID无效或音频文件缺失: " + rawResId);
                 return false;
             }
             currentPlayer = mp;
+            Log.d(TAG, "MediaPlayer 创建成功，准备播放: " + text);
 
             mp.setOnCompletionListener(mp1 -> {
                 Log.d(TAG, "音频播放完成: " + text);
@@ -103,8 +115,8 @@ public class VoicePromptManager {
         if (currentPlayer != null) {
             try {
                 currentPlayer.release();
-            } catch (Exception ignored) {
-            }
+                Log.d(TAG, "释放旧 MediaPlayer");
+            } catch (Exception ignored) {}
             currentPlayer = null;
         }
     }
@@ -113,8 +125,7 @@ public class VoicePromptManager {
         if (mp != null) {
             try {
                 mp.release();
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         if (currentPlayer == mp) {
             currentPlayer = null;
@@ -122,13 +133,18 @@ public class VoicePromptManager {
     }
 
     private void fallbackBeepAndVibrate() {
-        // 蜂鸣（使用 STREAM_ALARM，更容易穿透静音模式）
+        // 蜂鸣（改用 STREAM_MUSIC，更容易穿透静音模式）
+        ToneGenerator toneGen = null;
         try {
-            ToneGenerator toneGen = new ToneGenerator(AudioManager.STREAM_ALARM, 100);
+            toneGen = new ToneGenerator(AudioManager.STREAM_MUSIC, 100);
             toneGen.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1500);
-            Log.i(TAG, "蜂鸣兜底已触发");
+            Log.i(TAG, "蜂鸣兜底已触发 (STREAM_MUSIC)");
         } catch (Exception e) {
             Log.e(TAG, "蜂鸣失败", e);
+        } finally {
+            if (toneGen != null) {
+                toneGen.release();
+            }
         }
 
         // 振动
