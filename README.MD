@@ -1,3 +1,17 @@
+<div align="center">
+
+# CameraPhoneData | Sensor Capture
+
+**Android 上的 CameraX 视频、OpenCV 标定、IMU 采集、元数据管理及 OSS 上传工具。**
+
+`Android / CameraX / OpenCV / SensorManager / OSS`
+
+> 项目展示风格：移动端产品说明 · 以下保留原项目 README 的技术内容、状态说明和使用约束。
+
+</div>
+
+---
+
 # CameraPhoneData
 
 > Android 手机相机标定 + 原始视频采集 + IMU 惯性传感器同步采集 + 阿里云 OSS 上传。
